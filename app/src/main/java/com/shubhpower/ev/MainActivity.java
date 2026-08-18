@@ -364,50 +364,6 @@ public class MainActivity extends Activity {
         return chip;
     }
 
-    private View buildMapCard() {
-        FrameLayout card = new FrameLayout(this);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.parseColor("#EEF4FB"));
-        bg.setCornerRadius(dp(28));
-        card.setBackground(bg);
-        card.setMinimumHeight(dp(currentTab == Tab.MAP ? 430 : 380));
-
-        MapCanvasView canvasView = new MapCanvasView(this);
-        canvasView.setStations(visibleStations);
-        canvasView.setFocusedStation(selectedStation);
-        card.addView(canvasView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        TextView bubble = buildInfoBubble();
-        FrameLayout.LayoutParams bubbleParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        bubbleParams.leftMargin = dp(14);
-        bubbleParams.topMargin = dp(14);
-        card.addView(bubble, bubbleParams);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.VERTICAL);
-        actions.addView(roundActionButton("⌖", () -> toast("Center on current area")));
-        actions.addView(space(dp(12)));
-        actions.addView(roundActionButton("☰", () -> showSortDialog()));
-        FrameLayout.LayoutParams actionParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        actionParams.gravity = Gravity.END | Gravity.TOP;
-        actionParams.rightMargin = dp(14);
-        actionParams.topMargin = dp(80);
-        card.addView(actions, actionParams);
-
-        View selectedCard = buildSelectedStationCard();
-        FrameLayout.LayoutParams selectedParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        selectedParams.gravity = Gravity.BOTTOM;
-        selectedParams.leftMargin = dp(14);
-        selectedParams.rightMargin = dp(14);
-        selectedParams.bottomMargin = dp(14);
-        card.addView(selectedCard, selectedParams);
-
-        return card;
-    }
-
     private TextView buildInfoBubble() {
         TextView bubble = new TextView(this);
         bubble.setText("10 verified locations\nDemo availability");
@@ -571,39 +527,6 @@ public class MainActivity extends Activity {
             render();
         });
         return card;
-    }
-
-    private View historyRow(String title, String meta) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView dot = new TextView(this);
-        dot.setText("•");
-        dot.setTextSize(24f);
-        dot.setTextColor(Color.parseColor("#0F6CCF"));
-        dot.setTypeface(Typeface.DEFAULT_BOLD);
-        dot.setPadding(0, 0, dp(10), 0);
-
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.addView(titleText(title, 15f));
-        column.addView(bodyText(meta, 13f));
-
-        row.addView(dot);
-        row.addView(column);
-        return row;
-    }
-
-    private View profileAction(String title, String subtitle, Runnable action) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(16), dp(16), dp(16), dp(16));
-        row.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(20)));
-        row.addView(titleText(title, 16f));
-        row.addView(bodyText(subtitle, 13f));
-        row.setOnClickListener(v -> action.run());
-        return row;
     }
 
     private View buildBottomNav() {
@@ -1012,7 +935,7 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private View actionPanel() {
+    private LinearLayout actionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(14), dp(14), dp(14));
@@ -1072,124 +995,6 @@ public class MainActivity extends Activity {
         card.addView(selectedCard, selectedParams);
 
         return card;
-    }
-
-    private View buildInfoBubble() {
-        TextView bubble = new TextView(this);
-        bubble.setText("10 verified locations\nDemo availability");
-        bubble.setTextSize(14f);
-        bubble.setTextColor(Color.parseColor("#24324A"));
-        bubble.setTypeface(Typeface.DEFAULT_BOLD);
-        bubble.setLineSpacing(0f, 1.1f);
-        bubble.setPadding(dp(16), dp(14), dp(16), dp(14));
-        bubble.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#DCE4EE"), dp(18)));
-        return bubble;
-    }
-
-    private View buildSelectedStationCard() {
-        Station station = selectedStation != null ? selectedStation : firstVisible();
-        if (station == null) {
-            return emptyStateCard("No stations found", "Try a different search or clear the filter.");
-        }
-
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(14), dp(14), dp(14));
-        card.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(24)));
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView badge = new TextView(this);
-        badge.setText(station.initial());
-        badge.setTextSize(18f);
-        badge.setTypeface(Typeface.DEFAULT_BOLD);
-        badge.setTextColor(Color.WHITE);
-        badge.setGravity(Gravity.CENTER);
-        badge.setBackground(stationBadgeBackground(station.color));
-        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(54), dp(54));
-        badgeParams.rightMargin = dp(12);
-        header.addView(badge, badgeParams);
-
-        LinearLayout textColumn = new LinearLayout(this);
-        textColumn.setOrientation(LinearLayout.VERTICAL);
-        TextView name = titleText(station.name, 17f);
-        TextView address = bodyText(station.address + " · " + formatDistance(station.distanceKm), 13f);
-        textColumn.addView(name);
-        textColumn.addView(address);
-        header.addView(textColumn, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView arrow = circleArrow();
-        header.addView(arrow);
-        card.addView(header);
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.setPadding(0, dp(12), 0, 0);
-        stats.addView(statPill("⚡ " + station.powerKw + " kW", Color.parseColor("#24324A")));
-        stats.addView(spaceView(dp(8), 0));
-        stats.addView(statPill("₹" + formatPrice(station.pricePerKwh) + "/kWh", Color.parseColor("#24324A")));
-        stats.addView(spaceView(dp(8), 0));
-        stats.addView(statPill(station.score + " ChargeSure", Color.parseColor("#149B6B")));
-        card.addView(stats);
-
-        TextView availability = new TextView(this);
-        availability.setText("✓ " + station.availability);
-        availability.setTextColor(Color.parseColor("#149B6B"));
-        availability.setTypeface(Typeface.DEFAULT_BOLD);
-        availability.setTextSize(14f);
-        availability.setPadding(0, dp(12), 0, 0);
-        card.addView(availability);
-
-        card.setOnClickListener(v -> {
-            selectedStation = station;
-            render();
-        });
-        arrow.setOnClickListener(v -> {
-            selectedStation = station;
-            toast(station.name + " selected");
-        });
-        return card;
-    }
-
-    private View buildSelectedStationCardCompact() {
-        Station station = selectedStation != null ? selectedStation : firstVisible();
-        if (station == null) {
-            return emptyStateCard("No station selected", "Search for a charger to fill this card.");
-        }
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(14), dp(14), dp(14));
-        card.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(18)));
-        card.addView(titleText(station.name, 15f));
-        card.addView(bodyText(station.address, 13f));
-        card.addView(bodyText(station.powerKw + " kW · ₹" + formatPrice(station.pricePerKwh) + "/kWh", 13f));
-        return card;
-    }
-
-    private TextView circleArrow() {
-        TextView arrow = new TextView(this);
-        arrow.setText("›");
-        arrow.setTextSize(30f);
-        arrow.setTypeface(Typeface.DEFAULT_BOLD);
-        arrow.setGravity(Gravity.CENTER);
-        arrow.setTextColor(Color.parseColor("#0F6CCF"));
-        arrow.setBackground(buildRoundedStroke(Color.parseColor("#EAF4FF"), Color.parseColor("#D5E8FB"), dp(20)));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(44), dp(44));
-        arrow.setLayoutParams(params);
-        return arrow;
-    }
-
-    private TextView statPill(String text, int color) {
-        TextView pill = new TextView(this);
-        pill.setText(text);
-        pill.setTextColor(color);
-        pill.setTypeface(Typeface.DEFAULT_BOLD);
-        pill.setTextSize(13f);
-        pill.setPadding(dp(12), dp(8), dp(12), dp(8));
-        pill.setBackground(buildRoundedStroke(Color.parseColor("#F7FAFD"), Color.parseColor("#E3EAF3"), dp(16)));
-        return pill;
     }
 
     private TextView titleText(String text, float size) {
@@ -1349,13 +1154,6 @@ public class MainActivity extends Activity {
         button.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#DCE4EE"), 18));
         button.setOnClickListener(v -> action.run());
         return button;
-    }
-
-    private LinearLayout actionPanel() {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(0), dp(0), dp(0), dp(0));
-        return panel;
     }
 
     private View space(int size) {
