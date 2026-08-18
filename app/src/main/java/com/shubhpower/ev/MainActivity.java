@@ -2,19 +2,21 @@ package com.shubhpower.ev;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
+import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -22,172 +24,324 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
 
 public class MainActivity extends Activity {
     private static final String APP_URL = "https://shubh-power-ev-ui.shankranand332.chatgpt.site/";
-    private static final String PREFS = "shubh_power_prefs";
-    private static final String ONBOARDED = "onboarded";
+    private static final String ALLOWED_HOST = "shubh-power-ev-ui.shankranand332.chatgpt.site";
+    private static final int REQ_LOCATION = 1001;
+    private static final int REQ_CAMERA = 1002;
+
     private WebView webView;
-    private int step = 0;
-
-    private final String[] titles = {
-            "Welcome to Shubh Power",
-            "Find reliable charging nearby",
-            "Charge, pay and travel confidently"
-    };
-
-    private final String[] bodies = {
-            "Discover EV chargers, plan journeys and keep charging simple from one app.",
-            "Use the live map, station search and reliability filters to choose the right charging stop.",
-            "Scan chargers, use QueuePass, manage payments and open Shubh Rescue when you need urgent help."
-    };
+    private View loadingOverlay;
+    private View errorOverlay;
+    private boolean pageLoadFailed;
+    private GeolocationPermissions.Callback pendingGeoCallback;
+    private String pendingGeoOrigin;
+    private PermissionRequest pendingPermissionRequest;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        if (prefs.getBoolean(ONBOARDED, false)) {
-            showWebApp();
-        } else {
-            showOnboarding();
-        }
-    }
 
-    private TextView text(String value, float sp, int color, boolean bold) {
-        TextView v = new TextView(this);
-        v.setText(value);
-        v.setTextSize(sp);
-        v.setTextColor(color);
-        v.setLineSpacing(0, 1.12f);
-        if (bold) v.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
-        return v;
-    }
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.WHITE);
+        root.setFitsSystemWindows(true);
 
-    private int dp(int n) {
-        return Math.round(n * getResources().getDisplayMetrics().density);
-    }
+        webView = new WebView(this);
+        webView.setVisibility(View.INVISIBLE);
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        root.addView(webView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
 
-    private void showOnboarding() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(24), dp(24), dp(24), dp(24));
-        root.setBackgroundColor(Color.rgb(245, 248, 246));
+        loadingOverlay = createLoadingOverlay();
+        root.addView(loadingOverlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
 
-        TextView skip = text("Skip", 16, Color.rgb(16, 35, 29), true);
-        skip.setGravity(Gravity.END);
-        skip.setPadding(0, dp(8), 0, dp(8));
-        skip.setOnClickListener(v -> finishOnboarding());
-        root.addView(skip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        FrameLayout hero = new FrameLayout(this);
-        LinearLayout.LayoutParams heroParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        heroParams.topMargin = dp(18);
-        root.addView(hero, heroParams);
-
-        TextView bolt = text("⚡", 76, Color.rgb(22, 162, 103), false);
-        bolt.setGravity(Gravity.CENTER);
-        hero.addView(bolt, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        TextView title = text(titles[step], 30, Color.rgb(16, 35, 29), true);
-        title.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        TextView body = text(bodies[step], 17, Color.rgb(78, 92, 87), false);
-        body.setGravity(Gravity.CENTER_HORIZONTAL);
-        body.setPadding(dp(4), dp(14), dp(4), dp(20));
-        root.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        TextView dots = text(step == 0 ? "●  ○  ○" : step == 1 ? "○  ●  ○" : "○  ○  ●", 18, Color.rgb(22, 162, 103), true);
-        dots.setGravity(Gravity.CENTER);
-        dots.setPadding(0, 0, 0, dp(18));
-        root.addView(dots, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        Button next = new Button(this);
-        next.setAllCaps(false);
-        next.setText(step == titles.length - 1 ? "Get Started" : "Continue");
-        next.setTextSize(17);
-        next.setTextColor(Color.WHITE);
-        next.setBackgroundColor(Color.rgb(22, 162, 103));
-        next.setPadding(dp(12), dp(12), dp(12), dp(12));
-        next.setOnClickListener(v -> {
-            if (step < titles.length - 1) {
-                step++;
-                showOnboarding();
-            } else {
-                finishOnboarding();
-            }
-        });
-        LinearLayout.LayoutParams nextParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
-        nextParams.bottomMargin = dp(8);
-        root.addView(next, nextParams);
+        errorOverlay = createErrorOverlay();
+        errorOverlay.setVisibility(View.GONE);
+        root.addView(errorOverlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
 
         setContentView(root);
+        configureWebView();
+        loadWebSite();
     }
 
-    private void finishOnboarding() {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ONBOARDED, true).apply();
-        requestLocationIfNeeded();
-        showWebApp();
-    }
-
-    private void requestLocationIfNeeded() {
-        if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 42);
+    private void configureWebView() {
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            cookieManager.setAcceptThirdPartyCookies(webView, true);
         }
-    }
 
-    private void showWebApp() {
-        webView = new WebView(this);
-        webView.setBackgroundColor(Color.WHITE);
-        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setGeolocationEnabled(true);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-        s.setUserAgentString(s.getUserAgentString() + " ShubhPowerAndroid/1.0");
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setGeolocationEnabled(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setUserAgentString(settings.getUserAgentString() + " ShubhPowerAndroid/1.0");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                String host = uri.getHost();
-                if (host != null && host.endsWith("chatgpt.site")) return false;
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                    return true;
-                } catch (Exception e) {
-                    return false;
+                return handleUrl(request.getUrl());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleUrl(Uri.parse(url));
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                pageLoadFailed = false;
+                webView.setVisibility(View.VISIBLE);
+                showLoading();
+                hideError();
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (!pageLoadFailed) {
+                    hideLoading();
                 }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request != null && request.isForMainFrame()) {
+                    pageLoadFailed = true;
+                    hideLoading();
+                    showError();
+                }
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
+                pageLoadFailed = true;
+                handler.cancel();
+                hideLoading();
+                showError();
             }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                boolean granted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-                callback.invoke(origin, granted, false);
+                if (hasLocationPermission()) {
+                    callback.invoke(origin, true, false);
+                    return;
+                }
+                pendingGeoOrigin = origin;
+                pendingGeoCallback = callback;
+                requestPermissions(new String[]{
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                }, REQ_LOCATION);
             }
 
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                runOnUiThread(() -> request.grant(request.getResources()));
+                runOnUiThread(() -> handleWebPermissionRequest(request));
             }
         });
+    }
 
+    private void handleWebPermissionRequest(PermissionRequest request) {
+        String[] resources = request.getResources();
+        boolean wantsVideo = false;
+        for (String resource : resources) {
+            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                wantsVideo = true;
+                break;
+            }
+        }
+
+        if (!wantsVideo) {
+            request.deny();
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+            return;
+        }
+
+        pendingPermissionRequest = request;
+        requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
+    }
+
+    private boolean handleUrl(Uri uri) {
+        if (uri == null) {
+            return false;
+        }
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        boolean isHttp = "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+        boolean isAllowedHost = host != null && (host.equals(ALLOWED_HOST) || host.endsWith(".chatgpt.site"));
+
+        if (isHttp && isAllowedHost) {
+            return false;
+        }
+
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri));
+        } catch (ActivityNotFoundException ignored) {
+        }
+        return true;
+    }
+
+    private void loadWebSite() {
+        pageLoadFailed = false;
+        hideError();
+        showLoading();
         webView.loadUrl(APP_URL);
-        setContentView(webView);
+    }
+
+    private View createLoadingOverlay() {
+        LinearLayout overlay = overlayContainer();
+
+        ProgressBar progressBar = new ProgressBar(this);
+        TextView title = bigText("Loading Shubh Power", Color.rgb(16, 35, 29), 24f, Typeface.BOLD);
+        TextView body = smallText("Connecting to the live charging experience...", Color.rgb(78, 92, 87), 16f);
+
+        overlay.addView(progressBar);
+        overlay.addView(title);
+        overlay.addView(body);
+        return overlay;
+    }
+
+    private View createErrorOverlay() {
+        LinearLayout overlay = overlayContainer();
+
+        TextView title = bigText("Unable to connect", Color.rgb(16, 35, 29), 24f, Typeface.BOLD);
+        TextView body = smallText("Check your internet connection and try again.", Color.rgb(78, 92, 87), 16f);
+        Button retry = new Button(this);
+        retry.setAllCaps(false);
+        retry.setText("Retry");
+        retry.setTextColor(Color.WHITE);
+        retry.setTypeface(Typeface.DEFAULT_BOLD);
+        retry.setTextSize(16f);
+        retry.setBackgroundColor(Color.rgb(22, 162, 103));
+        retry.setOnClickListener(v -> loadWebSite());
+
+        overlay.addView(title);
+        overlay.addView(body);
+        overlay.addView(retry);
+        return overlay;
+    }
+
+    private LinearLayout overlayContainer() {
+        LinearLayout overlay = new LinearLayout(this);
+        overlay.setOrientation(LinearLayout.VERTICAL);
+        overlay.setGravity(Gravity.CENTER);
+        overlay.setPadding(dp(28), dp(28), dp(28), dp(28));
+        overlay.setBackgroundColor(Color.WHITE);
+        return overlay;
+    }
+
+    private TextView bigText(String text, int color, float size, int style) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(color);
+        view.setTextSize(size);
+        view.setTypeface(Typeface.defaultFromStyle(style));
+        view.setGravity(Gravity.CENTER);
+        return view;
+    }
+
+    private TextView smallText(String text, int color, float size) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextColor(color);
+        view.setTextSize(size);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(0, dp(12), 0, dp(22));
+        return view;
+    }
+
+    private void showLoading() {
+        loadingOverlay.setVisibility(View.VISIBLE);
+    }
+
+    private void hideLoading() {
+        loadingOverlay.setVisibility(View.GONE);
+    }
+
+    private void showError() {
+        webView.setVisibility(View.INVISIBLE);
+        errorOverlay.setVisibility(View.VISIBLE);
+    }
+
+    private void hideError() {
+        errorOverlay.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
+    }
+
+    private boolean hasLocationPermission() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQ_LOCATION && pendingGeoCallback != null) {
+            boolean granted = hasLocationPermission();
+            pendingGeoCallback.invoke(pendingGeoOrigin != null ? pendingGeoOrigin : APP_URL, granted, false);
+            pendingGeoCallback = null;
+            pendingGeoOrigin = null;
+        }
+
+        if (requestCode == REQ_CAMERA && pendingPermissionRequest != null) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted) {
+                pendingPermissionRequest.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+            } else {
+                pendingPermissionRequest.deny();
+            }
+            pendingPermissionRequest = null;
+        }
     }
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 }
