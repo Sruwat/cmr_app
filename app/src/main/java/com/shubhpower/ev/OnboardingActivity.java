@@ -21,13 +21,15 @@ public class OnboardingActivity extends Activity {
     private static final String[] TITLES = {
             "Find Chargers Near You",
             "Charge Smarter",
-            "Pay & Go"
+            "Pay & Go",
+            "Plan Every Trip"
     };
 
     private static final String[] BODIES = {
             "Locate nearby EV charging stations and check charger availability easily.",
             "Explore charging options, plan your journey, and access useful EV charging tools.",
-            "Manage charging sessions and payments directly from your Shubh Power app."
+            "Manage charging sessions and payments directly from your Shubh Power app.",
+            "Save stations, compare reliability, and head out with confidence."
     };
 
     private int step = 0;
@@ -81,7 +83,7 @@ public class OnboardingActivity extends Activity {
         bolt.setTextColor(Color.rgb(22, 162, 103));
         bolt.setGravity(Gravity.CENTER);
 
-        TextView pageTag = label("Step " + (step + 1) + " of 3", 14f, Color.rgb(22, 162, 103), Typeface.BOLD);
+        TextView pageTag = label("Step " + (step + 1) + " of " + TITLES.length, 14f, Color.rgb(22, 162, 103), Typeface.BOLD);
         pageTag.setPadding(0, dp(10), 0, 0);
 
         TextView title = label(TITLES[step], 30f, Color.rgb(16, 35, 29), Typeface.BOLD);
@@ -97,7 +99,7 @@ public class OnboardingActivity extends Activity {
         dots.setOrientation(LinearLayout.HORIZONTAL);
         dots.setGravity(Gravity.CENTER);
         dots.setPadding(0, dp(24), 0, 0);
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < TITLES.length; i++) {
             TextView dot = new TextView(this);
             dot.setText(i == step ? "●" : "○");
             dot.setTextSize(18f);
