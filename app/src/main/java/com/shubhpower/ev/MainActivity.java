@@ -303,7 +303,7 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        searchInput = new EditText(this);
+        final EditText searchInput = new EditText(this);
         searchInput.setText(searchQuery);
         searchInput.setHint("Search station, place or network");
         searchInput.setTextSize(16f);
@@ -528,54 +528,6 @@ public class MainActivity extends Activity {
         return pill;
     }
 
-    private View buildResultsHeader() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-
-        searchResultText = new TextView(this);
-        searchResultText.setText(resultSummary());
-        searchResultText.setTextSize(14f);
-        searchResultText.setTypeface(Typeface.DEFAULT_BOLD);
-        searchResultText.setTextColor(Color.parseColor("#55657E"));
-
-        TextView clear = new TextView(this);
-        clear.setText("Clear");
-        clear.setTextSize(14f);
-        clear.setTextColor(Color.parseColor("#0F6CCF"));
-        clear.setTypeface(Typeface.DEFAULT_BOLD);
-        clear.setOnClickListener(v -> {
-            searchQuery = "";
-            sortMode = SortMode.RELIABLE;
-            applyFilters();
-            render();
-        });
-
-        row.addView(searchResultText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        row.addView(clear);
-        return row;
-    }
-
-    private View buildStationList() {
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-
-        if (visibleStations.isEmpty()) {
-            list.addView(emptyStateCard("Nothing matches yet", "Try a broader search or switch sort mode."));
-            return list;
-        }
-
-        int count = Math.min(visibleStations.size(), currentTab == Tab.MAP ? visibleStations.size() : 3);
-        for (int i = 0; i < count; i++) {
-            Station station = visibleStations.get(i);
-            list.addView(stationRow(station));
-            if (i < count - 1) {
-                list.addView(space(dp(10)));
-            }
-        }
-        return list;
-    }
-
     private View stationRow(Station station) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
@@ -621,114 +573,6 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private View buildScanPanel() {
-        LinearLayout panel = actionPanel();
-
-        TextView qr = new TextView(this);
-        qr.setText("⌁");
-        qr.setTextSize(74f);
-        qr.setTypeface(Typeface.DEFAULT_BOLD);
-        qr.setGravity(Gravity.CENTER);
-        qr.setTextColor(Color.parseColor("#0F6CCF"));
-        qr.setPadding(0, dp(18), 0, 0);
-
-        TextView desc = bodyText("Tap the button below to simulate a charger QR scan and load a session preview.", 15f);
-        desc.setGravity(Gravity.CENTER);
-        desc.setPadding(dp(8), dp(8), dp(8), dp(8));
-
-        TextView scanStatusText = new TextView(this);
-        scanStatusText.setText(scanStatusMessage);
-        scanStatusText.setTextColor(Color.parseColor("#24324A"));
-        scanStatusText.setTypeface(Typeface.DEFAULT_BOLD);
-        scanStatusText.setGravity(Gravity.CENTER);
-
-        Button start = primaryActionButton("Start Scan", () -> {
-            Station station = selectedStation != null ? selectedStation : firstVisible();
-            scanStatusText.setText("Scan matched: " + (station != null ? station.name : "Unknown station"));
-            toast("Scan complete");
-            render();
-        });
-        Button reset = secondaryActionButton("Reset", () -> {
-            scanStatusText.setText("Ready to scan a charger.");
-            toast("Scanner reset");
-        });
-
-        panel.addView(qr);
-        panel.addView(desc);
-        panel.addView(scanStatusText);
-        panel.addView(space(dp(16)));
-        panel.addView(start);
-        panel.addView(space(dp(10)));
-        panel.addView(reset);
-        panel.addView(space(dp(14)));
-        panel.addView(buildSelectedStationCard());
-        return panel;
-    }
-
-    private View buildPayPanel() {
-        LinearLayout panel = actionPanel();
-
-        LinearLayout wallet = new LinearLayout(this);
-        wallet.setOrientation(LinearLayout.VERTICAL);
-        wallet.setPadding(dp(16), dp(16), dp(16), dp(16));
-        wallet.setBackground(buildRoundedStroke(Color.parseColor("#0F6CCF"), Color.parseColor("#0F6CCF"), dp(24)));
-
-        TextView balanceLabel = new TextView(this);
-        balanceLabel.setText("Wallet balance");
-        balanceLabel.setTextColor(Color.parseColor("#D7E9FF"));
-        balanceLabel.setTypeface(Typeface.DEFAULT_BOLD);
-
-        TextView balance = new TextView(this);
-        balance.setText("₹1,250.00");
-        balance.setTextColor(Color.WHITE);
-        balance.setTypeface(Typeface.DEFAULT_BOLD);
-        balance.setTextSize(32f);
-        balance.setPadding(0, dp(8), 0, dp(2));
-
-        payStatusText = new TextView(this);
-        payStatusText.setText("Last session: Noida Sec-18 · Completed");
-        payStatusText.setTextColor(Color.WHITE);
-
-        wallet.addView(balanceLabel);
-        wallet.addView(balance);
-        wallet.addView(payStatusText);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.addView(pillButton("Pay now", false, null, () -> toast("Opening payment flow")));
-        actions.addView(spaceView(dp(10), 0));
-        actions.addView(pillButton("History", false, null, () -> toast("Showing session history")));
-        actions.addView(spaceView(dp(10), 0));
-        actions.addView(pillButton("Add money", true, null, () -> {
-            toast("Wallet topped up");
-            payStatusText.setText("Wallet topped up successfully");
-            render();
-        }));
-
-        panel.addView(wallet);
-        panel.addView(space(dp(14)));
-        panel.addView(actions);
-        panel.addView(space(dp(14)));
-        panel.addView(buildPayHistoryCard());
-        return panel;
-    }
-
-    private View buildPayHistoryCard() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(22)));
-
-        card.addView(titleText("Recent sessions", 16f));
-        card.addView(space(dp(10)));
-        card.addView(historyRow("Noida Sec-18", "₹218.00 · 24 min"));
-        card.addView(space(dp(10)));
-        card.addView(historyRow("Connaught Place", "₹342.50 · 39 min"));
-        card.addView(space(dp(10)));
-        card.addView(historyRow("Ghaziabad Rapid Hub", "₹162.75 · 19 min"));
-        return card;
-    }
-
     private View historyRow(String title, String meta) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -749,49 +593,6 @@ public class MainActivity extends Activity {
         row.addView(dot);
         row.addView(column);
         return row;
-    }
-
-    private View buildProfilePanel() {
-        LinearLayout panel = actionPanel();
-
-        LinearLayout profile = new LinearLayout(this);
-        profile.setOrientation(LinearLayout.HORIZONTAL);
-        profile.setGravity(Gravity.CENTER_VERTICAL);
-        profile.setPadding(dp(16), dp(16), dp(16), dp(16));
-        profile.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(24)));
-
-        profile.addView(circleAvatar("S"));
-        LinearLayout info = new LinearLayout(this);
-        info.setOrientation(LinearLayout.VERTICAL);
-        info.setPadding(dp(14), 0, 0, 0);
-        info.addView(titleText("Shubh Power Client", 17f));
-        info.addView(bodyText("shubhpower@example.com", 13f));
-        profile.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        panel.addView(profile);
-        panel.addView(space(dp(14)));
-
-        panel.addView(profileAction("Open live UI", "Launch the website in your browser", () -> openLiveUi()));
-        panel.addView(space(dp(10)));
-        panel.addView(profileAction("Support", "Help, account and charging guidance", () -> toast("Support opened")));
-        panel.addView(space(dp(10)));
-        panel.addView(profileAction("Preferences", "Update app preferences and theme", () -> toast("Preferences opened")));
-        panel.addView(space(dp(14)));
-        panel.addView(buildProfileStats());
-        return panel;
-    }
-
-    private View buildProfileStats() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(buildRoundedStroke(Color.WHITE, Color.parseColor("#E3EAF3"), dp(22)));
-        card.addView(titleText("App info", 16f));
-        card.addView(space(dp(10)));
-        card.addView(bodyText("Version 1.0.0", 14f));
-        card.addView(bodyText("Standalone offline dashboard + live web access", 14f));
-        card.addView(bodyText("First-launch onboarding stored locally", 14f));
-        return card;
     }
 
     private View profileAction(String title, String subtitle, Runnable action) {
@@ -954,7 +755,7 @@ public class MainActivity extends Activity {
         TextView desc = bodyText("Tap start to simulate a QR scan and load the selected charger session.", 15f);
         desc.setGravity(Gravity.CENTER);
 
-        scanStatusText = new TextView(this);
+        final TextView scanStatusText = new TextView(this);
         scanStatusText.setText("Ready to scan a charger.");
         scanStatusText.setTextColor(Color.parseColor("#24324A"));
         scanStatusText.setTypeface(Typeface.DEFAULT_BOLD);
